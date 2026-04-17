@@ -1,0 +1,199 @@
+---
+title: STAT 4194 Project
+author:
+- Andre Contreras
+- Jiayi Gao
+- Mitch Krenz
+- Paarth Mahajan
+- Tony Zheng
+format:
+    typst:
+        mainfont: calibri
+        df-print: paged
+    revealjs: default
+execute:
+    include: false
+    cache: true
+    autodep: true
+---
+
+## Packages Used
+
+```{r}
+#| label: libraries
+library(tidyverse)
+library(igraph)
+library(rgexf)
+```
+
+# Data
+
+
+# Model Fits
+
+## AME Model
+
+For the AME model, we only use the sociality and multiplicative effects, since there are no dyadic or nodal attributes for the characters.
+```{r}
+#| label: amen library
+library(amen)
+```
+
+Loading movies dataset
+```{r}
+#| label: read movies, id_by_title
+movies_metadata <- read_tsv("network_metadata.tab")
+
+get_movie_id_by_title <- function(title) {
+    movies_metadata |>
+        filter(grepl(title, Title)) |>
+        pull(GexfID)
+}
+```
+
+# Movie Specific Examples
+
+```{r}
+#| label: model_movie_example
+# creates some exmaple plots and GOF for a movie
+model_movie_example <- function(title, cache = TRUE) {
+    movie_id <- get_movie_id_by_title(title)
+    cache_file <- str_glue("cache/{movie_id}_ame_model")
+    if (cache && file.exists(cache_file)) {
+        return(readRDS(cache_file))
+    }
+
+    movie_graph <- read.gexf(str_glue("data/{movie_id}.gexf")) |> gexf.to.igraph()
+
+    Y <- movie_graph |>
+        laplacian_matrix(sparse = FALSE)
+    Y <- -Y
+    diag(Y) <- NA
+
+    model <- ame(
+        Y = Y,
+        family = "frn",
+        R = 2,
+        nvar = TRUE,
+        odmax = E(movie_graph)$weight |> max(),
+        symmetric = TRUE,
+        plot = FALSE,
+        print = FALSE,
+        gof = TRUE,
+    )
+
+    out <- list(movie_graph = movie_graph, model = model)
+    if (!dir.exists("cache")) dir.create("cache")
+    saveRDS(out, cache_file)
+    return(out)
+}
+
+read_model_movie_example <- function(title) {
+    cache_file <- str_glue("cache/{movie_id}_ame_model")
+    return(readRDS(cache_file))
+}
+```
+
+## 10 Things I Hate About You
+
+**Kat, Patrick** - Primary love interests
+
+**Bianca, Cameron** - Secondary love interests
+
+**Joey** - Main antagonist
+
+
+## Model Plot
+
+```{r}
+#| label: 10 things I hate about you
+ten_things <- model_movie_example("10 Things")
+```
+
+```{r, include=TRUE}
+#| label: plot 10 things model
+plot(ten_things$model)
+par(mfrow = c(1, 1))
+```
+
+## Movie Plot
+
+```{r, include=TRUE}
+#| label: plot 10 things graph
+#| fig-width: 16
+#| fig-height: 9
+vertex.strength <- strength(ten_things$movie_graph)
+plot(
+    ten_things$movie_graph,
+    edge.width = E(ten_things$movie_graph)$weight,
+    vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
+    layout = ten_things$model$U,
+    vertex.label.font = 2,
+    vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
+    vertex.label.family = "sans",
+    vertex.label.color = "black",
+    mark.expand = 0,
+    mark.border = NA,
+)
+```
+
+## Star Wars
+
+**Main characters:** Threepio, Leia, Han, Luke
+
+**Main Antagonists:** Darth Vader, Boba Fett, Emperor
+
+## Model Plot
+
+```{r}
+#| label: star wars
+star_wars <- model_movie_example("Star Wars.*The Empire Strikes Back")
+```
+
+```{r, include=TRUE}
+#| label: plot star wars model
+plot(star_wars$model)
+par(mfrow = c(1, 1))
+```
+
+## Movie Plot
+
+```{r, include=TRUE}
+#| label: plot star wars graph
+#| fig-width: 16
+#| fig-height: 9
+vertex.strength <- strength(star_wars$movie_graph)
+plot(
+    star_wars$movie_graph,
+    edge.width = E(star_wars$movie_graph)$weight,
+    vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
+    layout = star_wars$model$U,
+    vertex.label.font = 2,
+    vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
+    vertex.label.family = "sans",
+    vertex.label.color = "black",
+    mark.expand = 0,
+    mark.border = NA,
+)
+```
+
+# General Results
+
+## Random Movie Sample
+
+Took random sample of 20 movies and ran same procedure...
+```{r, include=TRUE}
+#| label: read random movies sample
+movies_sample <- read_tsv("488	The Last Samurai\n682	Reservoir Dogs\n130	Black Rain\n134	Blade Runner\n671	The Reader\n843	TRON\n495	Leviathan\n41	Alien: Resurrection\n816	Thirteen Days\n227	The Crying Game\n511	Lord of Illusions\n791	Sugar & Spice\n487	The Last of the Mohicans\n217	Crank\n116	Being Human\n471	The King's Speech\n189	Chasing Sleep\n244	Death to Smoochy\n320	French Kiss\n214	Coraline", col_names = c("id", "title"))
+
+movies_sample$title
+```
+
+```{r}
+#| label: loop over sample, write each
+for (movie_num in 1:nrow(movies_sample)) {
+    title <- movies_sample[[movie_num, 2]]
+    # for (movie_num in 1:nrow(movies_sample)) {
+    model_movie_example(title)
+}
+```

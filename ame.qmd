@@ -12,7 +12,7 @@ format:
         df-print: paged
     revealjs: default
 execute:
-    include: false
+    echo: false
     cache: true
     autodep: true
 ---
@@ -33,15 +33,26 @@ library(rgexf)
 
 ## AME Model
 
-For the AME model, we only use the sociality and multiplicative effects, since there are no dyadic or nodal attributes for the characters.
+For the AME model, we only use the sociality and multiplicative effects (R = 2), since there are no dyadic or nodal attributes for the characters.
+
+## AME Model Type
+We also used a fixed rank nomination model, to fit for the count adjacency data (# of scenes shared). For example
 ```{r}
-#| label: amen library
-library(amen)
+#| label: adjacency matrix example
+movie_graph <- read.gexf(str_glue("data/1.gexf")) |> gexf.to.igraph()
+Y <- movie_graph |>
+    laplacian_matrix(sparse = FALSE)
+Y <- -Y
+diag(Y) <- NA
+
+Y
 ```
 
-Loading movies dataset
+<!-- function defs -->
 ```{r}
 #| label: read movies, id_by_title
+library(amen)
+
 movies_metadata <- read_tsv("network_metadata.tab")
 
 get_movie_id_by_title <- function(title) {
@@ -50,8 +61,6 @@ get_movie_id_by_title <- function(title) {
         pull(GexfID)
 }
 ```
-
-# Movie Specific Examples
 
 ```{r}
 #| label: model_movie_example
@@ -94,6 +103,8 @@ read_model_movie_example <- function(title) {
 }
 ```
 
+# Movie Specific Examples
+
 ## 10 Things I Hate About You
 
 **Kat, Patrick** - Primary love interests
@@ -108,17 +119,13 @@ read_model_movie_example <- function(title) {
 ```{r}
 #| label: 10 things I hate about you
 ten_things <- model_movie_example("10 Things")
-```
-
-```{r, include=TRUE}
-#| label: plot 10 things model
 plot(ten_things$model)
 par(mfrow = c(1, 1))
 ```
 
 ## Movie Plot
 
-```{r, include=TRUE}
+```{r}
 #| label: plot 10 things graph
 #| fig-width: 16
 #| fig-height: 9
@@ -150,7 +157,7 @@ plot(
 star_wars <- model_movie_example("Star Wars.*The Empire Strikes Back")
 ```
 
-```{r, include=TRUE}
+```{r}
 #| label: plot star wars model
 plot(star_wars$model)
 par(mfrow = c(1, 1))
@@ -158,7 +165,7 @@ par(mfrow = c(1, 1))
 
 ## Movie Plot
 
-```{r, include=TRUE}
+```{r}
 #| label: plot star wars graph
 #| fig-width: 16
 #| fig-height: 9
@@ -182,7 +189,7 @@ plot(
 ## Random Movie Sample
 
 Took random sample of 20 movies and ran same procedure...
-```{r, include=TRUE}
+```{r}
 #| label: read random movies sample
 movies_sample <- read_tsv("488	The Last Samurai\n682	Reservoir Dogs\n130	Black Rain\n134	Blade Runner\n671	The Reader\n843	TRON\n495	Leviathan\n41	Alien: Resurrection\n816	Thirteen Days\n227	The Crying Game\n511	Lord of Illusions\n791	Sugar & Spice\n487	The Last of the Mohicans\n217	Crank\n116	Being Human\n471	The King's Speech\n189	Chasing Sleep\n244	Death to Smoochy\n320	French Kiss\n214	Coraline", col_names = c("id", "title"))
 
@@ -191,9 +198,82 @@ movies_sample$title
 
 ```{r}
 #| label: loop over sample, write each
-for (movie_num in 1:nrow(movies_sample)) {
-    title <- movies_sample[[movie_num, 2]]
-    # for (movie_num in 1:nrow(movies_sample)) {
-    model_movie_example(title)
-}
+gof_stats_list = lapply(movies_sample$title, function(title) {
+    out = model_movie_example(title)
+    model = out$model
+
+    gof = model$GOF |> data.frame() |> _[-1,] |> colMeans()
+
+    return(gof)
+})
+
+observed_gof_stats_list = lapply(movies_sample$title, function(title) {
+    out = model_movie_example(title)
+    model = out$model
+
+    gof = model$GOF |> data.frame()
+
+    return(gof[1,])
+})
+
+model_mean_gof_stats = do.call(rbind, gof_stats_list) |> as.data.frame()
+
+observed_gof_stats = do.call(rbind, observed_gof_stats_list) |> as.data.frame()
+
+rownames(model_mean_gof_stats) = rownames(observed_gof_stats) = movies_sample$title
+
+original_colnames = colnames(model_mean_gof_stats)
+colnames(model_mean_gof_stats) = paste(original_colnames, "modeled", sep = ".")
+
+colnames(observed_gof_stats) = paste(original_colnames, "observed", sep = ".")
+
+comb_gof_stats = cbind(model_mean_gof_stats, observed_gof_stats)
+```
+
+## Goodness of Fits Residuals
+```{r}
+#| label: gof boxplots
+gof_stats_residuals = (model_mean_gof_stats - observed_gof_stats) |> setNames(original_colnames) |> pivot_longer(cols = everything(), names_to = "GOF_Stat", values_to = "Residual")
+
+ggplot(gof_stats_residuals, aes(x = GOF_Stat, y = Residual, fill = GOF_Stat)) +
+    geom_boxplot() +
+    theme_bw()
+```
+
+# Observed vs Residual
+```{r}
+#| label: base gof plot
+p = ggplot(comb_gof_stats) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    theme_bw()
+```
+
+## sd(rowmean)
+```{r}
+#| label: sd.rowmean
+p + geom_point(aes(x = sd.rowmean.observed, y = sd.rowmean.modeled))
+```
+
+## sd(colmean)
+```{r}
+#| label: sd.colmean
+p + geom_point(aes(x = sd.colmean.observed, y = sd.colmean.modeled))
+```
+
+## dyad.dep
+```{r}
+#| label: dyad.dep
+p + geom_point(aes(x = dyad.dep.observed, y = dyad.dep.modeled))
+```
+
+## cycle.dep
+```{r}
+#| label: cycle.dep
+p + geom_point(aes(x = cycle.dep.observed, y = cycle.dep.modeled))
+```
+
+## trans.dep
+```{r}
+#| label: trans.dep
+p + geom_point(aes(x = trans.dep.observed, y = trans.dep.modeled))
 ```

@@ -67,7 +67,7 @@ get_movie_id_by_title <- function(title) {
 # creates some exmaple plots and GOF for a movie
 model_movie_example <- function(title, cache = TRUE) {
     movie_id <- get_movie_id_by_title(title)
-    cache_file <- str_glue("cache/{movie_id}_ame_model")
+    cache_file <- str_glue("cache/{movie_id}_ame_model.rds")
     if (cache && file.exists(cache_file)) {
         return(readRDS(cache_file))
     }
@@ -98,7 +98,7 @@ model_movie_example <- function(title, cache = TRUE) {
 }
 
 read_model_movie_example <- function(title) {
-    cache_file <- str_glue("cache/{movie_id}_ame_model")
+    cache_file <- str_glue("cache/{movie_id}_ame_model.rds")
     return(readRDS(cache_file))
 }
 ```

@@ -123,7 +123,7 @@ plot(ten_things$model)
 par(mfrow = c(1, 1))
 ```
 
-## Movie Plot
+## Latent Positions Plot
 
 ```{r}
 #| label: plot 10 things graph
@@ -135,6 +135,11 @@ plot(
     edge.width = E(ten_things$movie_graph)$weight,
     vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
     layout = ten_things$model$U,
+    vertex.label = stringr::str_replace_all(
+        vertex_attr(ten_things$movie_graph)$name,
+        "(\\w) (\\w)", 
+        "\\1\n\\2"
+    ),
     vertex.label.font = 2,
     vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
     vertex.label.family = "sans",
@@ -163,7 +168,7 @@ plot(star_wars$model)
 par(mfrow = c(1, 1))
 ```
 
-## Movie Plot
+## Latent Positions Plot
 
 ```{r}
 #| label: plot star wars graph
@@ -175,6 +180,11 @@ plot(
     edge.width = E(star_wars$movie_graph)$weight,
     vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
     layout = star_wars$model$U,
+    vertex.label = stringr::str_replace_all(
+        vertex_attr(star_wars$movie_graph)$name,
+        "(\\w) (\\w)", 
+        "\\1\n\\2"
+    ),
     vertex.label.font = 2,
     vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
     vertex.label.family = "sans",

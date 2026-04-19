@@ -1,0 +1,114 @@
+---
+title: "4194 chang lu model test"
+format: html
+editor: visual
+---
+
+
+```{r}
+library(rgexf)
+library(igraph)
+library(tidyverse)
+
+setwd("C:/Users/JIAYI GAO/OneDrive/桌面/4194 FP/STAT-4194-Project-main/STAT-4194-Project-main")
+
+file.exists("data/488.gexf")
+
+ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
+         511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
+
+movie_names <- c(
+  "The Last Samurai", "Reservoir Dogs", "Black Rain", "Blade Runner",
+  "The Reader", "TRON", "Leviathan", "Alien: Resurrection",
+  "Thirteen Days", "The Crying Game", "Lord of Illusions",
+  "Sugar & Spice", "The Last of the Mohicans", "Crank",
+  "Being Human", "The King's Speech", "Chasing Sleep",
+  "Death to Smoochy", "French Kiss", "Coraline"
+)
+
+res <- vector("list", length(ids))
+
+for (i in seq_along(ids)) {
+  id <- ids[i]
+  f <- paste0("data/", id, ".gexf")
+
+  x <- read.gexf(f)
+  g <- gexf.to.igraph(x)
+  g <- igraph::simplify(g, remove.multiple = FALSE, remove.loops = TRUE)
+
+  deg <- degree(g)
+
+  g_cl <- tryCatch({
+    tmp <- sample_degseq(deg, method = "vl")
+    igraph::simplify(tmp, remove.multiple = TRUE, remove.loops = TRUE)
+  }, error = function(e) {
+    message("Failed on movie id: ", id)
+    return(NULL)
+  })
+
+  if (is.null(g_cl)) next
+
+  res[[i]] <- data.frame(
+    id = id,
+    movie = movie_names[i],
+
+    real_nodes = vcount(g),
+    real_edges = ecount(g),
+    real_density = edge_density(g),
+    real_transitivity = transitivity(g, type = "global"),
+    real_avg_transitivity = transitivity(g, type = "average"),
+    real_triangles = sum(count_triangles(g)) / 3,
+
+    cl_nodes = vcount(g_cl),
+    cl_edges = ecount(g_cl),
+    cl_density = edge_density(g_cl),
+    cl_transitivity = transitivity(g_cl, type = "global"),
+    cl_avg_transitivity = transitivity(g_cl, type = "average"),
+    cl_triangles = sum(count_triangles(g_cl)) / 3
+  )
+}
+
+sum_df <- do.call(rbind, res)
+
+print(sum_df)
+
+summary_df <- data.frame(
+  metric = c("nodes", "edges", "density", "global transitivity",
+             "average transitivity", "triangles"),
+  real_mean = c(
+    mean(sum_df$real_nodes, na.rm = TRUE),
+    mean(sum_df$real_edges, na.rm = TRUE),
+    mean(sum_df$real_density, na.rm = TRUE),
+    mean(sum_df$real_transitivity, na.rm = TRUE),
+    mean(sum_df$real_avg_transitivity, na.rm = TRUE),
+    mean(sum_df$real_triangles, na.rm = TRUE)
+  ),
+  cl_mean = c(
+    mean(sum_df$cl_nodes, na.rm = TRUE),
+    mean(sum_df$cl_edges, na.rm = TRUE),
+    mean(sum_df$cl_density, na.rm = TRUE),
+    mean(sum_df$cl_transitivity, na.rm = TRUE),
+    mean(sum_df$cl_avg_transitivity, na.rm = TRUE),
+    mean(sum_df$cl_triangles, na.rm = TRUE)
+  )
+)
+
+print(summary_df)
+
+boxplot(sum_df$real_density, sum_df$cl_density,
+        names = c("Real", "Chung-Lu"),
+        main = "Density: Real vs Chung-Lu")
+
+boxplot(sum_df$real_transitivity, sum_df$cl_transitivity,
+        names = c("Real", "Chung-Lu"),
+        main = "Global Transitivity: Real vs Chung-Lu")
+
+boxplot(sum_df$real_triangles, sum_df$cl_triangles,
+        names = c("Real", "Chung-Lu"),
+        main = "Triangle Count: Real vs Chung-Lu")
+```
+for graph 1: hence chuang lu model preserves the basic degree-driven structure of the movie networks, which leads to very similar numbers of nodes, edges, and density, but it underestimates higher order structure, aka, the real networks show larger transitivity and more triangles than the cl simulations
+
+for graph 2: real networks exhibit higher global transitivity than the cl simulations, aka, stronger clustering in the observed movie networks
+
+for graph 3: real networks contain more triangles than the cl model, meaning model underestimates high level connectivity patterns

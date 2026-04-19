@@ -173,7 +173,7 @@ abline(lm(lambda2 ~ n_nodes, data = spectral_stats),
        col = "#E24B4A", lty = 2, lwd = 1.5)
 ```
 
-As cast grows, characters can no longer all interact .The outliers above the line (Mohicans, Coraline, King's Speech) still have have tight narrative focus despite larger casts.
+As cast grows, characters can no longer all interact. The outliers above the line (Mohicans, Coraline, King's Speech) still have tight narrative focus despite larger casts.
 
 The red trend line shows the negative relationship clearly. Spend time on the outliers — they're more interesting than the trend itself. Films above the line are "punching above their weight" in cohesion terms.
 
@@ -264,8 +264,8 @@ This creates a hub-and-spoke structure that spectral analysis detects immediatel
 
 Here are our main 3 takeaways from the spectral analysis of the random sample of 20 movie character networks.
 
-**1 — All networks are connected, but not equally** λ₂ ranges from 0.33 to 2.39 which is a a 7× spread driven by setting and narrative style, not just cast size.
+**1 — All networks are connected, but not equally** λ₂ ranges from 0.33 to 2.39 which is a 7× spread driven by setting and narrative style, not just cast size.
 
 **2 — Size and density trade off** Larger casts consistently produce sparser networks. Films that break this trend have tight, focused narratives that keep all characters linked.
 
-**3 — Two structural archetypes exist** Spectral clustering automatically finds a divide between dense ensemble films (confined and protagonist-driven films This matches real narrative structure and this can be discovered with no genre labels.
+**3 — Two structural archetypes exist** Spectral clustering automatically finds a divide between dense ensemble films and protagonist-driven films This matches real narrative structure and this can be discovered with no genre labels.

@@ -1,7 +1,5 @@
-For the AME model, we only use the sociality and multiplicative effects (R = 2), since there are no dyadic or nodal attributes for the characters.
-
 ## AME Model Type
-We also used a fixed rank nomination model, to fit for the count adjacency data (# of scenes shared). For example
+For the AME model, we only use the sociality and multiplicative effects (R = 2), since there are no dyadic or nodal attributes for the characters. We also used a fixed rank nomination model, to fit for the count adjacency data (# of scenes shared). For example
 ```{r}
 #| label: adjacency matrix example
 movie_graph <- read.gexf(str_glue("data/1.gexf")) |> gexf.to.igraph()

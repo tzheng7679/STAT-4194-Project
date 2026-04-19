@@ -1,3 +1,5 @@
+## Summary Statistics
+
 ```{r}
 ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
          511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
@@ -79,15 +81,26 @@ summary_df <- data.frame(
 )
 
 print(summary_df)
+```
 
+## Plots
+```{r}
 boxplot(sum_df$real_density, sum_df$cl_density,
         names = c("Real", "Chung-Lu"),
         main = "Density: Real vs Chung-Lu")
+```
 
+## Plots
+
+```{r}
 boxplot(sum_df$real_transitivity, sum_df$cl_transitivity,
         names = c("Real", "Chung-Lu"),
         main = "Global Transitivity: Real vs Chung-Lu")
+```
 
+## Plots
+
+```{r}
 boxplot(sum_df$real_triangles, sum_df$cl_triangles,
         names = c("Real", "Chung-Lu"),
         main = "Triangle Count: Real vs Chung-Lu")

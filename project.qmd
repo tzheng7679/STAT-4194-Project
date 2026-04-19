@@ -67,7 +67,7 @@ We want to see what types of network analysis most effectively capture movie net
 
 # Conclusion
 
-- Simpler models like the Chung-Lu and Erdos-Renyi models struggle with higher order strucutre, as is typical in networks.
+- Simpler models like the Chung-Lu and Erdos-Renyi models struggle with higher order structure, as is typical in networks.
     - Movies have a complex structure of character appearances
 - Spectral clustering is quite performant and adapts to different cast structures
     - It picks up structures for both ensemble and centralized movies

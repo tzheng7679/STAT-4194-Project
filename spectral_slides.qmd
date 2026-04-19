@@ -268,4 +268,4 @@ Here are our main 3 takeaways from the spectral analysis of the random sample of
 
 **2 — Size and density trade off** Larger casts consistently produce sparser networks. Films that break this trend have tight, focused narratives that keep all characters linked.
 
-**3 — Two structural archetypes exist** Spectral clustering automatically finds a divide between dense ensemble films and protagonist-driven films This matches real narrative structure and this can be discovered with no genre labels.
+**3 — Two structural archetypes exist** Spectral clustering automatically finds a divide between dense ensemble films and protagonist-driven films. This matches real narrative structure and this can be discovered with no genre labels.

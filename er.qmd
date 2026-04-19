@@ -1,0 +1,70 @@
+## ER Model
+
+```{r, message=FALSE, echo=FALSE}
+er_analysis_results <- list()
+
+# Looping over the sample
+for(i in 1:nrow(movies_sample)) {
+  movie_id <- movies_sample$id[i]
+  movie_title <- movies_sample$title[i]
+  dest_file <- str_glue("data/{movie_id}.gexf")
+  
+  # Download check
+  if (!file.exists(dest_file)) {
+    url <- paste0(base_url, movie_id, ".gexf")
+    try(download.file(url, dest_file, mode = "wb", quiet = TRUE))
+  }
+
+  # Importing and converting to igraph
+  g_real <- tryCatch({
+    read.gexf(dest_file) |> gexf.to.igraph()
+  }, error = function(e) return(NULL))
+  
+  if (is.null(g_real)) next
+  
+  # Clean: remove self-loops but keep multiple edges for partnership weights
+  g_real <- simplify(g_real, remove.multiple = FALSE, remove.loops = TRUE)
+
+  # Analysis: Finding Top Partnerships (On-screen scenes)
+  edge_list <- as_data_frame(g_real, what="edges")
+  top_partnership <- edge_list %>% arrange(desc(weight)) %>% head(1)
+  
+  # Analysis: ER Model Parameters
+  n <- vcount(g_real)
+  m <- ecount(g_real)
+  p_hat <- m / choose(n, 2)  # Density
+  
+  # Analysis: Simulating ER Null Model
+  g_er <- sample_gnp(n, p_hat)
+  
+  # Comparing Metrics
+  obs_trans <- transitivity(g_real, type="global")
+  er_trans <- transitivity(g_er, type="global")
+  
+  obs_mod <- modularity(cluster_louvain(g_real))
+  er_mod <- modularity(cluster_louvain(g_er))
+  
+  # Storing results
+  er_analysis_results[[movie_title]] <- data.frame(
+    Title = movie_title,
+    Nodes = n,
+    Edges = m,
+    P_Estimate = round(p_hat, 4),
+    Obs_Clustering = round(obs_trans, 4),
+    ER_Clustering = round(er_trans, 4),
+    Obs_Modularity = round(obs_mod, 4),
+    ER_Modularity = round(er_mod, 4),
+    Top_Partnership = paste(top_partnership$from, "&", top_partnership$to),
+    Max_Scenes = top_partnership$weight
+  )
+}
+
+final_er_table <- bind_rows(er_analysis_results)
+print(final_er_table)
+```
+To analyze the movie character networks, I imported the co-appearance data for 20 films, treating each character as a node and their shared scenes as weighted edges. I then calculated the density ($\hat{p}$) of each real network to establish a baseline for the Erdos-Rényi (ER) model, which assumes that every relationship forms with equal, independent probability. By simulating these random "null" graphs, we compared the **observed** structural metrics, specifically transitivity and modularity, against the values expected by pure chance to determine if cinematic social structures follow a random or intentional design.
+
+## Analysis of ER Model
+The data reveals a massive clustering gap between the real observed movies and my simulation. In the actual films, the `Obs_Clustering` is consistently two to three times higher than the `ER_Clustering`. This shows that movie characters don't just meet at random. They form tight "cliques" where a friend of a friend is almost always your friend too.\
+\
+My simulation would also theoretically struggle to replicate the `Top_Partnership` and `Max_scenes` columns. The one's in the table are data from the observed data. In a simulation, all characters would have the same number of co-appearances with the same weight.\

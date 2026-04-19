@@ -1,20 +1,7 @@
----
-title: "Part _(dont know what part of the project this will be)_"
-subtitle: "Spectral Analysis"
-format:
-  revealjs:
-    smaller: true
-editor: visual
----
-
 ```{r}
 #| label: setup
 #| include: false
-
-library(rgexf)
-library(igraph)
-
-base_path <- "C:/Users/mitch/OneDrive/Desktop/Stat 4194 project/dataverse_files/gexf/gexf"
+base_path <- "data/"
 
 movie_ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
                511, 791, 487, 217, 116, 471, 189, 244, 320, 214)

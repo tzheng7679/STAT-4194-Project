@@ -7,17 +7,17 @@ author:
 - Paarth Mahajan
 - Tony Zheng
 format:
-    typst:
-        mainfont: calibri
-        df-print: paged
-    revealjs: default
+    revealjs:
+        smaller: true
+    pptx:
+        fig-format: "svg"
 execute:
     echo: false
     cache: true
     autodep: true
 ---
 
-## Packages Used
+# Packages Used
 
 ```{r}
 #| label: libraries
@@ -28,340 +28,27 @@ library(rgexf)
 
 # Data
 
-
-# Model Fits
-
-## ER Model
-
-```{r, message=FALSE, echo=FALSE}
-# Data Setup
+```{r}
+# label: Data Setup
 dir.create("data", showWarnings = FALSE)
 base_url <- "https://raw.githubusercontent.com/tzheng7679/STAT-4194-Project/main/data/"
 
 # Specific sample of 20 movies
 movies_sample <- read_tsv(I("id\ttitle\n488\tThe Last Samurai\n682\tReservoir Dogs\n130\tBlack Rain\n134\tBlade Runner\n671\tThe Reader\n843\tTRON\n495\tLeviathan\n41\tAlien: Resurrection\n816\tThirteen Days\n227\tThe Crying Game\n511\tLord of Illusions\n791\tSugar & Spice\n487\tThe Last of the Mohicans\n217\tCrank\n116\tBeing Human\n471\tThe King's Speech\n189\tChasing Sleep\n244\tDeath to Smoochy\n320\tFrench Kiss\n214\tCoraline"))
-
-er_analysis_results <- list()
-
-# Looping over the sample
-for(i in 1:nrow(movies_sample)) {
-  movie_id <- movies_sample$id[i]
-  movie_title <- movies_sample$title[i]
-  dest_file <- str_glue("data/{movie_id}.gexf")
-  
-  # Download check
-  if (!file.exists(dest_file)) {
-    url <- paste0(base_url, movie_id, ".gexf")
-    try(download.file(url, dest_file, mode = "wb", quiet = TRUE))
-  }
-
-  # Importing and converting to igraph
-  g_real <- tryCatch({
-    read.gexf(dest_file) |> gexf.to.igraph()
-  }, error = function(e) return(NULL))
-  
-  if (is.null(g_real)) next
-  
-  # Clean: remove self-loops but keep multiple edges for partnership weights
-  g_real <- simplify(g_real, remove.multiple = FALSE, remove.loops = TRUE)
-
-  # Analysis: Finding Top Partnerships (On-screen scenes)
-  edge_list <- as_data_frame(g_real, what="edges")
-  top_partnership <- edge_list %>% arrange(desc(weight)) %>% head(1)
-  
-  # Analysis: ER Model Parameters
-  n <- vcount(g_real)
-  m <- ecount(g_real)
-  p_hat <- m / choose(n, 2)  # Density
-  
-  # Analysis: Simulating ER Null Model
-  g_er <- sample_gnp(n, p_hat)
-  
-  # Comparing Metrics
-  obs_trans <- transitivity(g_real, type="global")
-  er_trans <- transitivity(g_er, type="global")
-  
-  obs_mod <- modularity(cluster_louvain(g_real))
-  er_mod <- modularity(cluster_louvain(g_er))
-  
-  # Storing results
-  er_analysis_results[[movie_title]] <- data.frame(
-    Title = movie_title,
-    Nodes = n,
-    Edges = m,
-    P_Estimate = round(p_hat, 4),
-    Obs_Clustering = round(obs_trans, 4),
-    ER_Clustering = round(er_trans, 4),
-    Obs_Modularity = round(obs_mod, 4),
-    ER_Modularity = round(er_mod, 4),
-    Top_Partnership = paste(top_partnership$from, "&", top_partnership$to),
-    Max_Scenes = top_partnership$weight
-  )
-}
-
-final_er_table <- bind_rows(er_analysis_results)
-print(final_er_table)
-```
-To analyze the movie character networks, I imported the co-appearance data for 20 films, treating each character as a node and their shared scenes as weighted edges. I then calculated the density ($\hat{p}$) of each real network to establish a baseline for the Erdos-Rényi (ER) model, which assumes that every relationship forms with equal, independent probability. By simulating these random "null" graphs, we compared the **observed** structural metrics, specifically transitivity and modularity, against the values expected by pure chance to determine if cinematic social structures follow a random or intentional design.
-
-### Analysis of ER Model
-The data reveals a massive clustering gap between the real observed movies and my simulation. In the actual films, the `Obs_Clustering` is consistently two to three times higher than the `ER_Clustering`. This shows that movie characters don't just meet at random. They form tight "cliques" where a friend of a friend is almost always your friend too.\
-\
-My simulation would also theoretically struggle to replicate the     `Top_Partnership` and `Max_scenes` columns. The one's in the table are data from the observed data. In a simulation, all characters would have the same number of co-appearances with the same weight.\
-
-## AME Model
-
-For the AME model, we only use the sociality and multiplicative effects (R = 2), since there are no dyadic or nodal attributes for the characters.
-
-## AME Model Type
-We also used a fixed rank nomination model, to fit for the count adjacency data (# of scenes shared). For example
-```{r}
-#| label: adjacency matrix example
-movie_graph <- read.gexf(str_glue("data/1.gexf")) |> gexf.to.igraph()
-Y <- movie_graph |>
-    laplacian_matrix(sparse = FALSE)
-Y <- -Y
-diag(Y) <- NA
-
-Y
 ```
 
-<!-- function defs -->
-```{r}
-#| label: read movies, id_by_title
-library(amen)
+# ER Model
 
-movies_metadata <- read_tsv("network_metadata.tab")
+{{< include er.qmd >}}
 
-get_movie_id_by_title <- function(title) {
-    movies_metadata |>
-        filter(grepl(title, Title)) |>
-        pull(GexfID)
-}
-```
+# Chung-Lu Model
 
-```{r}
-#| label: model_movie_example
-# creates some exmaple plots and GOF for a movie
-model_movie_example <- function(title, cache = TRUE) {
-    movie_id <- get_movie_id_by_title(title)
-    cache_file <- str_glue("cache/{movie_id}_ame_model.rds")
-    if (cache && file.exists(cache_file)) {
-        return(readRDS(cache_file))
-    }
+{{< include "4194C Chung Lu Model.qmd" >}}
 
-    movie_graph <- read.gexf(str_glue("data/{movie_id}.gexf")) |> gexf.to.igraph()
+# Spectral Model
 
-    Y <- movie_graph |>
-        laplacian_matrix(sparse = FALSE)
-    Y <- -Y
-    diag(Y) <- NA
+{{< include spectral_slides.qmd >}}
 
-    model <- ame(
-        Y = Y,
-        family = "frn",
-        R = 2,
-        nvar = TRUE,
-        odmax = E(movie_graph)$weight |> max(),
-        symmetric = TRUE,
-        plot = FALSE,
-        print = FALSE,
-        gof = TRUE,
-    )
+# AME
 
-    out <- list(movie_graph = movie_graph, model = model)
-    if (!dir.exists("cache")) dir.create("cache")
-    saveRDS(out, cache_file)
-    return(out)
-}
-
-read_model_movie_example <- function(title) {
-    cache_file <- str_glue("cache/{movie_id}_ame_model.rds")
-    return(readRDS(cache_file))
-}
-```
-
-# Movie Specific Examples
-
-## 10 Things I Hate About You
-
-**Kat, Patrick** - Primary love interests
-
-**Bianca, Cameron** - Secondary love interests
-
-**Joey** - Main antagonist
-
-
-## Model Plot
-
-```{r}
-#| label: 10 things I hate about you
-ten_things <- model_movie_example("10 Things")
-plot(ten_things$model)
-par(mfrow = c(1, 1))
-```
-
-## Latent Positions Plot
-
-```{r}
-#| label: plot 10 things graph
-#| fig-width: 16
-#| fig-height: 9
-vertex.strength <- strength(ten_things$movie_graph)
-plot(
-    ten_things$movie_graph,
-    edge.width = E(ten_things$movie_graph)$weight,
-    vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
-    layout = ten_things$model$U,
-    vertex.label = stringr::str_replace_all(
-        vertex_attr(ten_things$movie_graph)$name,
-        "(\\w) (\\w)", 
-        "\\1\n\\2"
-    ),
-    vertex.label.font = 2,
-    vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
-    vertex.label.family = "sans",
-    vertex.label.color = "black",
-    mark.expand = 0,
-    mark.border = NA,
-)
-```
-
-## Star Wars
-
-**Main characters:** Threepio, Leia, Han, Luke
-
-**Main Antagonists:** Darth Vader, Boba Fett, Emperor
-
-## Model Plot
-
-```{r}
-#| label: star wars
-star_wars <- model_movie_example("Star Wars.*The Empire Strikes Back")
-```
-
-```{r}
-#| label: plot star wars model
-plot(star_wars$model)
-par(mfrow = c(1, 1))
-```
-
-## Latent Positions Plot
-
-```{r}
-#| label: plot star wars graph
-#| fig-width: 16
-#| fig-height: 9
-vertex.strength <- strength(star_wars$movie_graph)
-plot(
-    star_wars$movie_graph,
-    edge.width = E(star_wars$movie_graph)$weight,
-    vertex.size = vertex.strength / max(vertex.strength) * 20 + 10,
-    layout = star_wars$model$U,
-    vertex.label = stringr::str_replace_all(
-        vertex_attr(star_wars$movie_graph)$name,
-        "(\\w) (\\w)", 
-        "\\1\n\\2"
-    ),
-    vertex.label.font = 2,
-    vertex.label.cex = log(vertex.strength, 5) / max(log(vertex.strength, 3)) * 2,
-    vertex.label.family = "sans",
-    vertex.label.color = "black",
-    mark.expand = 0,
-    mark.border = NA,
-)
-```
-
-# General Results
-
-## Random Movie Sample
-
-Took random sample of 20 movies and ran same procedure...
-```{r}
-#| label: read random movies sample
-movies_sample <- read_tsv("488	The Last Samurai\n682	Reservoir Dogs\n130	Black Rain\n134	Blade Runner\n671	The Reader\n843	TRON\n495	Leviathan\n41	Alien: Resurrection\n816	Thirteen Days\n227	The Crying Game\n511	Lord of Illusions\n791	Sugar & Spice\n487	The Last of the Mohicans\n217	Crank\n116	Being Human\n471	The King's Speech\n189	Chasing Sleep\n244	Death to Smoochy\n320	French Kiss\n214	Coraline", col_names = c("id", "title"))
-
-movies_sample$title
-```
-
-```{r}
-#| label: loop over sample, write each
-gof_stats_list = lapply(movies_sample$title, function(title) {
-    out = model_movie_example(title)
-    model = out$model
-
-    gof = model$GOF |> data.frame() |> _[-1,] |> colMeans()
-
-    return(gof)
-})
-
-observed_gof_stats_list = lapply(movies_sample$title, function(title) {
-    out = model_movie_example(title)
-    model = out$model
-
-    gof = model$GOF |> data.frame()
-
-    return(gof[1,])
-})
-
-model_mean_gof_stats = do.call(rbind, gof_stats_list) |> as.data.frame()
-
-observed_gof_stats = do.call(rbind, observed_gof_stats_list) |> as.data.frame()
-
-rownames(model_mean_gof_stats) = rownames(observed_gof_stats) = movies_sample$title
-
-original_colnames = colnames(model_mean_gof_stats)
-colnames(model_mean_gof_stats) = paste(original_colnames, "modeled", sep = ".")
-
-colnames(observed_gof_stats) = paste(original_colnames, "observed", sep = ".")
-
-comb_gof_stats = cbind(model_mean_gof_stats, observed_gof_stats)
-```
-
-## Goodness of Fits Residuals
-```{r}
-#| label: gof boxplots
-gof_stats_residuals = (model_mean_gof_stats - observed_gof_stats) |> setNames(original_colnames) |> pivot_longer(cols = everything(), names_to = "GOF_Stat", values_to = "Residual")
-
-ggplot(gof_stats_residuals, aes(x = GOF_Stat, y = Residual, fill = GOF_Stat)) +
-    geom_boxplot() +
-    theme_bw()
-```
-
-# Observed vs Residual
-```{r}
-#| label: base gof plot
-p = ggplot(comb_gof_stats) +
-    geom_abline(slope = 1, intercept = 0, color = "red") +
-    theme_bw()
-```
-
-## sd(rowmean)
-```{r}
-#| label: sd.rowmean
-p + geom_point(aes(x = sd.rowmean.observed, y = sd.rowmean.modeled))
-```
-
-## sd(colmean)
-```{r}
-#| label: sd.colmean
-p + geom_point(aes(x = sd.colmean.observed, y = sd.colmean.modeled))
-```
-
-## dyad.dep
-```{r}
-#| label: dyad.dep
-p + geom_point(aes(x = dyad.dep.observed, y = dyad.dep.modeled))
-```
-
-## cycle.dep
-```{r}
-#| label: cycle.dep
-p + geom_point(aes(x = cycle.dep.observed, y = cycle.dep.modeled))
-```
-
-## trans.dep
-```{r}
-#| label: trans.dep
-p + geom_point(aes(x = trans.dep.observed, y = trans.dep.modeled))
-```
+{{< include ame.qmd >}}

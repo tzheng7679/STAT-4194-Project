@@ -1,19 +1,4 @@
----
-title: "4194 chang lu model test"
-format: html
-editor: visual
----
-
-
 ```{r}
-library(rgexf)
-library(igraph)
-library(tidyverse)
-
-setwd("C:/Users/JIAYI GAO/OneDrive/桌面/4194 FP/STAT-4194-Project-main/STAT-4194-Project-main")
-
-file.exists("data/488.gexf")
-
 ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
          511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
 

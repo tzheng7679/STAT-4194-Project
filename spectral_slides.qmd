@@ -1,0 +1,284 @@
+---
+title: "Part _(dont know what part of the project this will be)_"
+subtitle: "Spectral Analysis"
+format:
+  revealjs:
+    smaller: true
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(rgexf)
+library(igraph)
+
+base_path <- "C:/Users/mitch/OneDrive/Desktop/Stat 4194 project/dataverse_files/gexf/gexf"
+
+movie_ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
+               511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
+
+movie_names <- c(
+  "488" = "The Last Samurai",
+  "682" = "Reservoir Dogs",
+  "130" = "Black Rain",
+  "134" = "Blade Runner",
+  "671" = "The Reader",
+  "843" = "TRON",
+  "495" = "Leviathan",
+  "41"  = "Alien: Resurrection",
+  "816" = "Thirteen Days",
+  "227" = "The Crying Game",
+  "511" = "Lord of Illusions",
+  "791" = "Sugar & Spice",
+  "487" = "The Last of the Mohicans",
+  "217" = "Crank",
+  "116" = "Being Human",
+  "471" = "The King's Speech",
+  "189" = "Chasing Sleep",
+  "244" = "Death to Smoochy",
+  "320" = "French Kiss",
+  "214" = "Coraline"
+)
+
+movie_igraphs <- list()
+for (id in movie_ids) {
+  file <- file.path(base_path, paste0(id, ".gexf"))
+  if (file.exists(file)) {
+    gexf_obj <- read.gexf(file)
+    g <- graph_from_data_frame(
+      d = gexf_obj$edges[, c("source", "target")],
+      directed = FALSE,
+      vertices = gexf_obj$nodes[, "id", drop = FALSE]
+    )
+    movie_igraphs[[as.character(id)]] <- g
+  }
+}
+
+spectral_stats <- data.frame(
+  movie_id = integer(), movie_name = character(),
+  n_nodes = integer(), n_edges = integer(),
+  n_components = integer(), lambda2 = numeric(),
+  spectral_gap = numeric(), largest_eigenval = numeric(),
+  spectral_spread = numeric()
+)
+eigenvalue_list <- list()
+
+for (id in names(movie_igraphs)) {
+  g <- movie_igraphs[[id]]
+  g <- as.undirected(g, mode = "collapse")
+  g <- simplify(g)
+  g <- delete_vertices(g, which(degree(g) == 0))
+  n <- vcount(g); m <- ecount(g)
+  if (n < 3) next
+  L <- laplacian_matrix(g, normalized = FALSE)
+  eigs <- tryCatch(sort(eigen(as.matrix(L), symmetric = TRUE)$values), error = function(e) NULL)
+  if (is.null(eigs) || any(!is.finite(eigs))) next
+  eigenvalue_list[[id]] <- eigs
+  spectral_stats <- rbind(spectral_stats, data.frame(
+    movie_id         = as.integer(id),
+    movie_name       = movie_names[id],
+    n_nodes          = n,
+    n_edges          = m,
+    n_components     = sum(eigs < 1e-8),
+    lambda2          = round(eigs[2], 4),
+    spectral_gap     = round(eigs[2] - eigs[1], 4),
+    largest_eigenval = round(eigs[n], 4),
+    spectral_spread  = round(eigs[n] - eigs[2], 4)
+  ))
+}
+
+n_points <- 100
+spectrum_matrix <- t(sapply(eigenvalue_list, function(eigs) {
+  approx(seq(0, 1, length.out = length(eigs)), eigs,
+         xout = seq(0, 1, length.out = n_points))$y
+}))
+rownames(spectrum_matrix) <- movie_names[rownames(spectrum_matrix)]
+
+dist_matrix <- as.matrix(dist(spectrum_matrix))
+sigma <- median(dist_matrix)
+similarity_matrix <- exp(-dist_matrix^2 / (2 * sigma^2))
+diag(similarity_matrix) <- 0
+
+D_sim <- diag(rowSums(similarity_matrix))
+L_sim <- D_sim - similarity_matrix
+D_inv_sqrt <- diag(1 / sqrt(diag(D_sim)))
+L_norm <- D_inv_sqrt %*% L_sim %*% D_inv_sqrt
+
+eigs_sim <- sort(eigen(L_norm, symmetric = TRUE)$values)
+gaps <- diff(eigs_sim[1:10])
+k <- which.max(gaps) + 1
+
+eig_decomp <- eigen(L_norm, symmetric = TRUE)
+embedding <- eig_decomp$vectors[, (20 - k + 1):20]
+embedding <- embedding / sqrt(rowSums(embedding^2))
+
+set.seed(42)
+km <- kmeans(embedding, centers = k, nstart = 50)
+clusters <- km$cluster
+names(clusters) <- movie_names[names(eigenvalue_list)]
+cluster_colors <- c("#E24B4A", "#1D9E75")
+
+spectral_stats$cluster <- clusters[spectral_stats$movie_name]
+```
+
+## Spectral Analysis
+
+Using the same random sample of 20 films, we then applied spectral analysis by treating each character network as a mathematical object and extracting structural properties from its eigenvalues.
+
+::: columns
+::: {.column width="50%"}
+**Our goal:**
+
+To determine if the mathematical fingerprint of a film's character network reveals something about how the film is structured — without knowing anything about plot or genre?
+:::
+
+::: {.column width="50%"}
+Our conclusion:
+
+**The answer**
+
+Yes. Spectral analysis found two distinct structural types : confined ensemble films vs protagonist-driven films.
+:::
+:::
+
+## Finding 1: Smaller casts aren't always less connected
+
+```{r}
+#| echo: false
+#| fig-height: 5
+
+ordered_idx   <- order(spectral_stats$lambda2)
+ordered_names <- spectral_stats$movie_name[ordered_idx]
+bar_colors    <- ifelse(spectral_stats$lambda2[ordered_idx] >= 1.0, "#E24B4A",
+                 ifelse(spectral_stats$lambda2[ordered_idx] >= 0.7, "#EF9F27", "#378ADD"))
+
+par(mar = c(8, 4, 2, 2), bg = NA)
+barplot(
+  spectral_stats$lambda2[ordered_idx],
+  names.arg = ordered_names,
+  las = 2, col = bar_colors, border = NA,
+  ylab = "Fiedler Value (λ_2)",
+  cex.names = 0.65, cex.axis = 0.85
+)
+abline(h = 1.0, lty = 2, col = "#999999", lwd = 1)
+```
+
+Leviathan (12 characters) is **7× more cohesive** than Blade Runner (25 characters). Network density matters far more than size.
+
+## Finding 2: Larger casts are systematically less cohesive
+
+```{r}
+#| echo: false
+#| fig-height: 4.5
+
+par(mar = c(5, 4, 2, 2), bg = NA)
+plot(spectral_stats$n_nodes, spectral_stats$lambda2,
+     pch = 19, col = "#378ADD", cex = 1.4,
+     xlab = "Number of characters (nodes)",
+     ylab = "λ_2 (Fiedler Value)",
+     cex.axis = 0.85, cex.lab = 0.9)
+text(spectral_stats$n_nodes, spectral_stats$lambda2,
+     labels = spectral_stats$movie_name,
+     pos = 3, cex = 0.52, col = "#555555")
+abline(lm(lambda2 ~ n_nodes, data = spectral_stats),
+       col = "#E24B4A", lty = 2, lwd = 1.5)
+```
+
+As cast grows, characters can no longer all interact .The outliers above the line (Mohicans, Coraline, King's Speech) still have have tight narrative focus despite larger casts.
+
+The red trend line shows the negative relationship clearly. Spend time on the outliers — they're more interesting than the trend itself. Films above the line are "punching above their weight" in cohesion terms.
+
+## Finding 3: Two structural types emerge automatically
+
+```{r}
+#| echo: false
+
+pca <- prcomp(embedding)
+pc  <- pca$x[, 1:2]
+rownames(pc) <- movie_names[names(eigenvalue_list)]
+
+par(mar = c(5, 4, 2, 2), bg = NA)
+plot(pc[, 1], pc[, 2],
+     col = cluster_colors[clusters],
+     pch = 19, cex = 2,
+     xlab = "PC1 (network density)", ylab = "PC2",
+     cex.axis = 0.85, cex.lab = 0.9)
+text(pc[, 1], pc[, 2],
+     labels = rownames(pc),
+     pos = 3, cex = 0.58,
+     col = cluster_colors[clusters])
+legend("bottomright",
+       legend = c("Cluster 1 — dense ensembles",
+                  "Cluster 2 — protagonist-driven"),
+       col = cluster_colors, pch = 19, cex = 0.8,
+       bty = "n")
+```
+
+## The two clusters
+
+::: columns
+::: {.column width="50%"}
+**Cluster 1 — Dense ensembles**
+
+*Avg 24 nodes · 99 edges · λ₂ = 1.18*
+
+-   Reservoir Dogs
+-   TRON
+-   Leviathan
+-   Alien: Resurrection
+-   The Last of the Mohicans
+-   The King's Speech
+
+Small casts where nearly every character interacts with nearly every other.
+:::
+
+::: {.column width="50%"}
+**Cluster 2 — Protagonist-driven**
+
+*Avg 36 nodes · 89 edges · λ₂ = 0.63*
+
+-   The Last Samurai
+-   Black Rain · Blade Runner
+-   The Reader · Thirteen Days
+-   The Crying Game · Crank
+-   French Kiss · Coraline
+-   
+    -   5 more
+
+Larger casts organized around a central character. Peripheral characters don't meet each other.
+:::
+:::
+
+## Potential reasons for density
+
+::: columns
+::: {.column width="50%"}
+**Why Cluster 1 is so dense**
+
+The main setting of each movie: Reservoir Dogs (diner), Leviathan (submarine), Alien: Resurrection (spaceship), The King's Speech (therapy room).
+
+These are all confined settings which force all characters to interact with each other
+
+Confined settings force all characters to interact with each other and this is exactly what high edge density and high λ₂ capture.
+:::
+
+::: {.column width="50%"}
+**Why Cluster 2 is sparser**
+
+Protagonist-driven films introduce many characters who only interact with the hero and not with each other.
+
+This creates a hub-and-spoke structure that spectral analysis detects immediately.
+:::
+:::
+
+## Summary
+
+Here are our main 3 takeaways from the spectral analysis of the random sample of 20 movie character networks.
+
+**1 — All networks are connected, but not equally** λ₂ ranges from 0.33 to 2.39 which is a a 7× spread driven by setting and narrative style, not just cast size.
+
+**2 — Size and density trade off** Larger casts consistently produce sparser networks. Films that break this trend have tight, focused narratives that keep all characters linked.
+
+**3 — Two structural archetypes exist** Spectral clustering automatically finds a divide between dense ensemble films (confined and protagonist-driven films This matches real narrative structure and this can be discovered with no genre labels.

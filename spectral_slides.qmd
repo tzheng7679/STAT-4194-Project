@@ -114,7 +114,7 @@ spectral_stats$cluster <- clusters[spectral_stats$movie_name]
 
 Using the same random sample of 20 films, we then applied spectral analysis by treating each character network as a mathematical object and extracting structural properties from its eigenvalues.
 
-::: columns
+::::: columns
 ::: {.column width="50%"}
 **Our goal:**
 
@@ -128,7 +128,7 @@ Our conclusion:
 
 Yes. Spectral analysis found two distinct structural types : confined ensemble films vs protagonist-driven films.
 :::
-:::
+:::::
 
 ## Finding 1: Smaller casts aren't always less connected
 
@@ -205,7 +205,7 @@ legend("bottomright",
 
 ## The two clusters
 
-::: columns
+::::: columns
 ::: {.column width="50%"}
 **Cluster 1 — Dense ensembles**
 
@@ -236,11 +236,11 @@ Small casts where nearly every character interacts with nearly every other.
 
 Larger casts organized around a central character. Peripheral characters don't meet each other.
 :::
-:::
+:::::
 
 ## Potential reasons for density
 
-::: columns
+::::: columns
 ::: {.column width="50%"}
 **Why Cluster 1 is so dense**
 
@@ -258,7 +258,7 @@ Protagonist-driven films introduce many characters who only interact with the he
 
 This creates a hub-and-spoke structure that spectral analysis detects immediately.
 :::
-:::
+:::::
 
 ## Summary
 

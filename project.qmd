@@ -57,6 +57,10 @@ We want to see what types of network analysis most effectively capture movie net
 
 {{< include "4194C Chung Lu Model.qmd" >}}
 
+# SBM Model
+
+{{< include sbm.qmd >}}
+
 # Spectral Model
 
 {{< include spectral_slides.qmd >}}

@@ -1,70 +1,202 @@
-## ER Model
+---
+title: STAT 4194 Project
+subtitle: Erdos-Renyi Model
+author:
+- Andre Contreras
+- Jiayi Gao
+- Mitch Krenz
+- Paarth Mahajan
+- Tony Zheng
+format:
+    typst:
+        mainfont: calibri
+        df-print: paged
+    revealjs: default
+execute:
+    echo: false
+    cache: true
+    autodep: true
+---
 
-```{r, message=FALSE, echo=FALSE}
-er_analysis_results <- list()
+## Packages Used
+```{r, message=FALSE}
+#| label: libraries
+library(tidyverse)
+library(igraph)
+library(rgexf)
 
-# Looping over the sample
-for(i in 1:nrow(movies_sample)) {
-  movie_id <- movies_sample$id[i]
-  movie_title <- movies_sample$title[i]
-  dest_file <- str_glue("data/{movie_id}.gexf")
-  
-  # Download check
-  if (!file.exists(dest_file)) {
-    url <- paste0(base_url, movie_id, ".gexf")
-    try(download.file(url, dest_file, mode = "wb", quiet = TRUE))
-  }
+# Data Setup
+movie_ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
+               511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
 
-  # Importing and converting to igraph
-  g_real <- tryCatch({
-    read.gexf(dest_file) |> gexf.to.igraph()
-  }, error = function(e) return(NULL))
-  
-  if (is.null(g_real)) next
-  
-  # Clean: remove self-loops but keep multiple edges for partnership weights
-  g_real <- simplify(g_real, remove.multiple = FALSE, remove.loops = TRUE)
+movie_names <- c(
+  "488" = "The Last Samurai", "682" = "Reservoir Dogs", "130" = "Black Rain",
+  "134" = "Blade Runner", "671" = "The Reader", "843" = "TRON",
+  "495" = "Leviathan", "41"  = "Alien: Resurrection", "816" = "Thirteen Days",
+  "227" = "The Crying Game", "511" = "Lord of Illusions", "791" = "Sugar & Spice",
+  "487" = "The Last of the Mohicans", "217" = "Crank", "116" = "Being Human",
+  "471" = "The King's Speech", "189" = "Chasing Sleep", "244" = "Death to Smoochy",
+  "320" = "French Kiss", "214" = "Coraline"
+)
+```
 
-  # Analysis: Finding Top Partnerships (On-screen scenes)
-  edge_list <- as_data_frame(g_real, what="edges")
-  top_partnership <- edge_list %>% arrange(desc(weight)) %>% head(1)
+
+## Top Partnerships in Each Movie
+Before diving into statistical modeling, I first examined the raw structure of the character networks to identify who drives the narrative. In a movie script, character interactions are rarely equal. They are usually centered around a few key relationships. I will take a subset of 20 random movies to look at who their top character partnership was and how many scenes this duo shot together.\
+```{r}
+# Initialize an empty list to store row data
+table_data <- list()
+
+for (id in as.character(movie_ids)) {
+  f <- paste0("data/", id, ".gexf")
   
-  # Analysis: ER Model Parameters
-  n <- vcount(g_real)
-  m <- ecount(g_real)
-  p_hat <- m / choose(n, 2)  # Density
+  # Ensure the file exists before processing
+  if (!file.exists(f)) next
   
-  # Analysis: Simulating ER Null Model
-  g_er <- sample_gnp(n, p_hat)
+  # Import and clean
+  g <- read.gexf(f) |> gexf.to.igraph()
+  # Simplify removes self-loops but keeps the scene weights on edges
+  g <- simplify(g, remove.multiple = FALSE, remove.loops = TRUE)
   
-  # Comparing Metrics
-  obs_trans <- transitivity(g_real, type="global")
-  er_trans <- transitivity(g_er, type="global")
+  # Extract the edge with the highest weight (Max Scenes)
+  edge_df <- as_data_frame(g, what="edges")
+  top_row <- edge_df %>% arrange(desc(weight)) %>% head(1)
   
-  obs_mod <- modularity(cluster_louvain(g_real))
-  er_mod <- modularity(cluster_louvain(g_er))
-  
-  # Storing results
-  er_analysis_results[[movie_title]] <- data.frame(
-    Title = movie_title,
-    Nodes = n,
-    Edges = m,
-    P_Estimate = round(p_hat, 4),
-    Obs_Clustering = round(obs_trans, 4),
-    ER_Clustering = round(er_trans, 4),
-    Obs_Modularity = round(obs_mod, 4),
-    ER_Modularity = round(er_mod, 4),
-    Top_Partnership = paste(top_partnership$from, "&", top_partnership$to),
-    Max_Scenes = top_partnership$weight
+  # Store results
+  table_data[[id]] <- data.frame(
+    Movie = movie_names[id],
+    Nodes = vcount(g),
+    Edges = ecount(g),
+    Top_Partnership = paste(top_row$from, "&", top_row$to),
+    Max_Scenes = top_row$weight
   )
 }
 
-final_er_table <- bind_rows(er_analysis_results)
-print(final_er_table)
+movie_summary_table <- bind_rows(table_data)
+print(movie_summary_table)
 ```
-To analyze the movie character networks, I imported the co-appearance data for 20 films, treating each character as a node and their shared scenes as weighted edges. I then calculated the density ($\hat{p}$) of each real network to establish a baseline for the Erdos-Rényi (ER) model, which assumes that every relationship forms with equal, independent probability. By simulating these random "null" graphs, we compared the **observed** structural metrics, specifically transitivity and modularity, against the values expected by pure chance to determine if cinematic social structures follow a random or intentional design.
 
-## Analysis of ER Model
-The data reveals a massive clustering gap between the real observed movies and my simulation. In the actual films, the `Obs_Clustering` is consistently two to three times higher than the `ER_Clustering`. This shows that movie characters don't just meet at random. They form tight "cliques" where a friend of a friend is almost always your friend too.\
+By looking at the `Max_Scenes` column, I can see that Bertie & Lionel in The King's Speech act as massive anchors for the entire network. This degree heterogeneity is my first hint that a simple random model, like the Erdos-Renyi model where everyone has roughly the same number of friends, will almost certainly fail to capture the reality of these scripts.
+
+## The Erdos-Renyi (ER) Model
+To test if cinematic social structures are just a result of random chance, I applied the Erdos-Renyi (ER) method. This model assumes that an edge between any two characters is formed with a fixed probability $p$, independent of any other edges. I estimated $\hat{p}$ for each movie based on its density to create 100 simulated "random twins" for each film.
+
+### Summary Statistics of ER Model vs Observed
+```{r}
+# ER Analysis Loop
+er_results <- data.frame()
+sim_dist_example <- list() 
+
+for (id in as.character(movie_ids)) {
+  f <- paste0("data/", id, ".gexf")
+  if (!file.exists(f)) next
+  
+  g_real <- read.gexf(f) |> gexf.to.igraph()
+  g_real <- simplify(g_real, remove.multiple = FALSE, remove.loops = TRUE)
+  
+  # ER Parameters & Simulation 
+  n <- vcount(g_real)
+  phat <- ecount(g_real) / choose(n, 2)
+  
+  # Running a small batch of simulations to get a distribution 
+  b <- 100
+  c_star <- replicate(b, transitivity(sample_gnp(n, phat), type="global"))
+  m_star <- replicate(b, modularity(cluster_louvain(sample_gnp(n, phat))))
+  
+  # Calculated Observed
+  obs_c <- transitivity(g_real, type="global")
+  obs_m <- modularity(cluster_louvain(g_real))
+  
+  er_results <- rbind(er_results, data.frame(
+    movie_name = movie_names[id],
+    n.nodes = n,
+    p.hat = round(phat, 4),
+    obs.clus = round(obs_c, 4),
+    er.clus = round(mean(c_star), 4),
+    obs.mod = round(obs_m, 4),
+    er.mod = round(mean(m_star), 4)
+  ))
+  
+  # Reservoir Dogs distribution for the visual
+  if(id == "682") sim_dist_example <- list(star = c_star, obs = obs_c)
+}
+
+print(er_results)
+```
+
+### Analysis of ER Model
+My results highlight a massive structural difference between real films and the ER simulations. In the table above, the **observed clustering** is consistently two to five times higher than the **ER clustering**. In a movie like Reservoir Dogs, characters form triangles (if Character A knows B and C, B and C almost certainly know each other). The ER model completely misses this, as it doesn't account for the cliqueish nature of social interactions.\
+
+### Small World?
+```{r}
+obs_L <- mean_distance(g_real)
+er_L  <- mean_distance(sample_gnp(n, phat))
+
+small_world_summary <- tibble(
+  Metric = c("Clustering Coefficient (C)", "Average Path Length (L)"),
+  Observed = c(obs_c, obs_L),
+  Simulated_ER = c(mean(c_star), er_L)
+)
+
+small_world_summary
+# Small world check: Is (obs_c/er_c) large AND (obs_L/er_L) close to 1?
+```
+
+**Note: A network is small world if Observed C » C_R & L is approximately the same as L_R!**\
+Since the clustering is significantly higher but the path length remains relatively equally short, I can classify this movie network as a Small-World Network.\
+
+## Density Plot: The Clustering Gap Between Observed & ER Simulation
+```{r}
+#| echo: false
+#| fig-height: 4
+plot(density(sim_dist_example$star), 
+     main = "Clustering: Reservoir Dogs vs ER",
+     xlab = "Global Clustering Coefficient", 
+     col = "blue", lwd = 2,
+     xlim = c(0, max(sim_dist_example$obs, sim_dist_example$star) + 0.1))
+abline(v = sim_dist_example$obs, col = "darkred", lwd = 2, lty = 2)
+legend("topleft", legend = c("Simulated ER", "Observed Movie"), 
+       col = c("blue", "darkred"), lty = c(1, 2), bty = "n")
+```
+The blue curve represents the "random world." The dashed red line represents the real movie. Because the red line is sitting so far to the right, I can statistically conclude that the ER model is a bad fit. It cannot create the community structure that exists in a real script.
+
+## Visualizing the Network Structure of Reservoir Dogs Characters
+Finally, I plotted the real character network of Reservoir Dogs alongside an ER simulation of the same size and density. I used the Louvain algorithm to detect and color code communities.
+```{r}
+# Visualizing the "Hairball" (ER) vs. Narrative Structure (Real)
+# Using Reservoir Dogs for this example
+set.seed(4194)
+target_id <- "682"
+g_real <- read.gexf(paste0("data/", target_id, ".gexf")) |> gexf.to.igraph()
+g_real <- simplify(g_real)
+
+# Generate ER equivalent
+n <- vcount(g_real)
+phat <- ecount(g_real) / choose(n, 2)
+g_er <- sample_gnp(n, phat)
+
+# Community Detection for coloring
+cl_real <- cluster_louvain(g_real)
+cl_er <- cluster_louvain(g_er)
+
+# Plotting Side-by-Side
+par(mfrow=c(1,2), mar=c(1,1,3,1))
+
+# Real Network
+plot(g_real, 
+     layout=layout_with_fr(g_real), 
+     vertex.color=membership(cl_real),
+     vertex.size=10, vertex.label=NA,
+     main="Real Movie: Organized Groups")
+
+# ER Network
+plot(g_er, 
+     layout=layout_with_fr(g_er), 
+     vertex.color=membership(cl_er),
+     vertex.size=10, vertex.label=NA,
+     main="ER Model: Randomness")
+```
+
+In the Real Movie plot, we see clear clumps of color representing characters who are forced to interact by the plot. In the ER Model plot, the network looks like a uniform "hairball". While the algorithm still tries to assign colors, the groups are disorganized because the edges were placed by a random coin flip rather than a storyteller. This confirms that while ER models are useful for understanding simple connectivity, they fail to capture the intentional, clustered design of human narratives.\
 \
-My simulation would also theoretically struggle to replicate the `Top_Partnership` and `Max_scenes` columns. The one's in the table are data from the observed data. In a simulation, all characters would have the same number of co-appearances with the same weight.\
+As a result, we can move on to test if other more advanced models we learned in class can be more accurate in detecting relationships between characters.\

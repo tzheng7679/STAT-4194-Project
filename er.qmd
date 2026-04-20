@@ -1,30 +1,6 @@
----
-title: STAT 4194 Project
-subtitle: Erdos-Renyi Model
-author:
-- Andre Contreras
-- Jiayi Gao
-- Mitch Krenz
-- Paarth Mahajan
-- Tony Zheng
-format:
-    typst:
-        mainfont: calibri
-        df-print: paged
-    revealjs: default
-execute:
-    echo: false
-    cache: true
-    autodep: true
----
-
-## Packages Used
+# ER Model
 ```{r, message=FALSE}
 #| label: libraries
-library(tidyverse)
-library(igraph)
-library(rgexf)
-
 # Data Setup
 movie_ids <- c(488, 682, 130, 134, 671, 843, 495, 41, 816, 227,
                511, 791, 487, 217, 116, 471, 189, 244, 320, 214)
@@ -78,10 +54,10 @@ print(movie_summary_table)
 
 By looking at the `Max_Scenes` column, I can see that Bertie & Lionel in The King's Speech act as massive anchors for the entire network. This degree heterogeneity is my first hint that a simple random model, like the Erdos-Renyi model where everyone has roughly the same number of friends, will almost certainly fail to capture the reality of these scripts.
 
-## The Erdos-Renyi (ER) Model
+# The Erdos-Renyi (ER) Model
 To test if cinematic social structures are just a result of random chance, I applied the Erdos-Renyi (ER) method. This model assumes that an edge between any two characters is formed with a fixed probability $p$, independent of any other edges. I estimated $\hat{p}$ for each movie based on its density to create 100 simulated "random twins" for each film.
 
-### Summary Statistics of ER Model vs Observed
+# Summary Statistics of ER Model vs Observed
 ```{r}
 # ER Analysis Loop
 er_results <- data.frame()
@@ -124,10 +100,10 @@ for (id in as.character(movie_ids)) {
 print(er_results)
 ```
 
-### Analysis of ER Model
+# Analysis of ER Model
 My results highlight a massive structural difference between real films and the ER simulations. In the table above, the **observed clustering** is consistently two to five times higher than the **ER clustering**. In a movie like Reservoir Dogs, characters form triangles (if Character A knows B and C, B and C almost certainly know each other). The ER model completely misses this, as it doesn't account for the cliqueish nature of social interactions.\
 
-### Small World?
+# Small World?
 ```{r}
 obs_L <- mean_distance(g_real)
 er_L  <- mean_distance(sample_gnp(n, phat))
@@ -145,7 +121,7 @@ small_world_summary
 **Note: A network is small world if Observed C » C_R & L is approximately the same as L_R!**\
 Since the clustering is significantly higher but the path length remains relatively equally short, I can classify this movie network as a Small-World Network.\
 
-## Density Plot: The Clustering Gap Between Observed & ER Simulation
+# Density Plot: The Clustering Gap Between Observed & ER Simulation
 ```{r}
 #| echo: false
 #| fig-height: 4
@@ -160,7 +136,7 @@ legend("topleft", legend = c("Simulated ER", "Observed Movie"),
 ```
 The blue curve represents the "random world." The dashed red line represents the real movie. Because the red line is sitting so far to the right, I can statistically conclude that the ER model is a bad fit. It cannot create the community structure that exists in a real script.
 
-## Visualizing the Network Structure of Reservoir Dogs Characters
+# Visualizing the Network Structure of Reservoir Dogs Characters
 Finally, I plotted the real character network of Reservoir Dogs alongside an ER simulation of the same size and density. I used the Louvain algorithm to detect and color code communities.
 ```{r}
 # Visualizing the "Hairball" (ER) vs. Narrative Structure (Real)

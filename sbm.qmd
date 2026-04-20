@@ -1,9 +1,12 @@
+# SBM Model
+
 ```{r}
-#| label: setup
+#| label: sbm setup
 #| include: false
 
 #Fitting the Data using SBM with a Variational EM Method
 #Importing Libraries potentially needed to fit the SBM with VEM 
+library(tidyverse)
 library(clue)
 library(igraph)
 library(netrankr)
@@ -26,9 +29,11 @@ get_movie_id_by_title <- function(title) {
 }
 ```
 
-## Stochastic Block Models and Variational EM Algorithm
+# Stochastic Block Models and Variational EM Algorithm
 
-We will be now using Stochastic Block Models to not only explore the community structure of our data but also get a more accurate model fit by accounting for the community structure in the model. S will also be useful in 
+We will be now using Stochastic Block Models to not only explore the community structure of our data but also get a more accurate model fit by accounting for the community structure in the model.
+
+# Stochastic Block Models and Variational EM Algorithm
 
 Since the Maximum Likelihood Estimate for our community assignment in not computable in polynomial time, we will be using the Variational EM Method where we consider a candidate variational distribution for Z, $q(Z) = \Pi_{i} \Pi_{q} \tau_{iq}^{z_{iq}}$ and iteratively optimize a objective function $F(q,\theta)$ over the E-step (variational parameters) and the M-step (model parameters):
 
@@ -38,7 +43,7 @@ $$
 
 where Z is our matrix of community assignment vectors (independent and indentically samples from a multinomial distribution) and $A_{ij}$ are observed data where $A_{ij}|(Z_iq=1,Z_{jl}=1) = Bernoulli(\pi_{ql})$
 
-## Fitting SBM with Variational EM Method in R
+# Fitting SBM with Variational EM Method in R
 
 We will use the `blockmodels` library, as we did in class, to fit our `moviegalaxies` data in R using the `BM_Bernoulli` function. Model Selection will be done by default using the Integrated Complete Likelihood Criteria (ICL) which will essentially select the optimal number of clusters/communities by balancing model fit with high clustering property.
 
@@ -87,7 +92,7 @@ for (i in seq_along(movies_sample$title)) {
 ```
 
 
-#Analysis using the Stochastic Block Model Fits of our movies
+# Analysis using the Stochastic Block Model Fits of our movies
 
 In case of a single network, Stochastic Block Models are powerful tools to analyze, model and further gain intuition and understanding about the community structure of the graph and analyzing interactions and gateways between communities. SBMs can also model the data for a Network and possess decent predictive power (even more by accounting for degree heterogeneity using DCSBM). 
 

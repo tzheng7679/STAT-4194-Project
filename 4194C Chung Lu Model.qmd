@@ -1,3 +1,4 @@
+# Chung-Lu Model
 ## Summary Statistics
 
 ```{r}
@@ -83,14 +84,12 @@ summary_df <- data.frame(
 print(summary_df)
 ```
 
-## Plots
 ```{r}
 boxplot(sum_df$real_density, sum_df$cl_density,
         names = c("Real", "Chung-Lu"),
         main = "Density: Real vs Chung-Lu")
 ```
 
-## Plots
 
 ```{r}
 boxplot(sum_df$real_transitivity, sum_df$cl_transitivity,
@@ -98,13 +97,15 @@ boxplot(sum_df$real_transitivity, sum_df$cl_transitivity,
         main = "Global Transitivity: Real vs Chung-Lu")
 ```
 
-## Plots
 
 ```{r}
 boxplot(sum_df$real_triangles, sum_df$cl_triangles,
         names = c("Real", "Chung-Lu"),
         main = "Triangle Count: Real vs Chung-Lu")
 ```
+
+# Chung Lu Analysis
+
 for graph 1: hence chuang lu model preserves the basic degree-driven structure of the movie networks, which leads to very similar numbers of nodes, edges, and density, but it underestimates higher order structure, aka, the real networks show larger transitivity and more triangles than the cl simulations
 
 for graph 2: real networks exhibit higher global transitivity than the cl simulations, aka, stronger clustering in the observed movie networks

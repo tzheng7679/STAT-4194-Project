@@ -1,5 +1,7 @@
+# Spectral Model
+
 ```{r}
-#| label: setup
+#| label: spectral setup
 #| include: false
 base_path <- "data/"
 

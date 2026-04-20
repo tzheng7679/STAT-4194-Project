@@ -1,4 +1,5 @@
-## AME Model Type
+# AME Model
+
 For the AME model, we only use the sociality and multiplicative effects (R = 2), since there are no dyadic or nodal attributes for the characters. We also used a fixed rank nomination model, to fit for the count adjacency data (# of scenes shared). For example
 ```{r}
 #| label: adjacency matrix example
@@ -66,9 +67,9 @@ read_model_movie_example <- function(title) {
 }
 ```
 
-## Movie Specific Examples
+# Movie Specific Examples
 
-### 10 Things I Hate About You
+# 10 Things I Hate About You
 
 **Kat, Patrick** - Primary love interests
 
@@ -77,7 +78,7 @@ read_model_movie_example <- function(title) {
 **Joey** - Main antagonist
 
 
-## Model Plot
+# Model Plot
 
 ```{r}
 #| label: 10 things I hate about you
@@ -86,7 +87,7 @@ plot(ten_things$model)
 par(mfrow = c(1, 1))
 ```
 
-## Latent Positions Plot
+# Latent Positions Plot
 
 ```{r}
 #| label: plot 10 things graph
@@ -112,15 +113,15 @@ plot(
 )
 ```
 
-## Movie Specific Examples
+# Movie Specific Examples
 
-### Star Wars - The Empire Strikes Back
+# Star Wars - The Empire Strikes Back
 
 **Main characters:** Threepio, Leia, Han, Luke
 
 **Main Antagonists:** Darth Vader, Boba Fett, Emperor
 
-## Model Plot
+# Model Plot
 
 ```{r}
 #| label: star wars
@@ -133,7 +134,7 @@ plot(star_wars$model)
 par(mfrow = c(1, 1))
 ```
 
-## Latent Positions Plot
+# Latent Positions Plot
 
 ```{r}
 #| label: plot star wars graph
@@ -159,7 +160,7 @@ plot(
 )
 ```
 
-## General Results
+# General Results
 
 Took random sample of 20 movies and ran same procedure...
 ```{r}
@@ -203,7 +204,7 @@ colnames(observed_gof_stats) = paste(original_colnames, "observed", sep = ".")
 comb_gof_stats = cbind(model_mean_gof_stats, observed_gof_stats)
 ```
 
-## Goodness of Fits Residuals
+# Goodness of Fits Residuals
 ```{r}
 #| label: gof boxplots
 gof_stats_residuals = (model_mean_gof_stats - observed_gof_stats) |> setNames(original_colnames) |> pivot_longer(cols = everything(), names_to = "GOF_Stat", values_to = "Residual")
@@ -213,7 +214,7 @@ ggplot(gof_stats_residuals, aes(x = GOF_Stat, y = Residual, fill = GOF_Stat)) +
     theme_bw()
 ```
 
-## Observed vs Residual
+# Observed vs Residual
 ```{r}
 #| label: base gof plot
 p = ggplot(comb_gof_stats) +
@@ -221,31 +222,31 @@ p = ggplot(comb_gof_stats) +
     theme_bw()
 ```
 
-## sd(rowmean)
+# sd(rowmean)
 ```{r}
 #| label: sd.rowmean
 p + geom_point(aes(x = sd.rowmean.observed, y = sd.rowmean.modeled))
 ```
 
-## sd(colmean)
+# sd(colmean)
 ```{r}
 #| label: sd.colmean
 p + geom_point(aes(x = sd.colmean.observed, y = sd.colmean.modeled))
 ```
 
-## dyad.dep
+# dyad.dep
 ```{r}
 #| label: dyad.dep
 p + geom_point(aes(x = dyad.dep.observed, y = dyad.dep.modeled))
 ```
 
-## cycle.dep
+# cycle.dep
 ```{r}
 #| label: cycle.dep
 p + geom_point(aes(x = cycle.dep.observed, y = cycle.dep.modeled))
 ```
 
-## trans.dep
+# trans.dep
 ```{r}
 #| label: trans.dep
 p + geom_point(aes(x = trans.dep.observed, y = trans.dep.modeled))

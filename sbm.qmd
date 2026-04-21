@@ -1,4 +1,6 @@
-# SBM Model
+```{r, warning=FALSE, message=FALSE, results='hide'}
+# Your code here will run, but warnings and text output won't show.
+```
 
 ```{r}
 #| label: sbm setup
@@ -11,11 +13,14 @@ library(clue)
 library(igraph)
 library(netrankr)
 library(blockmodels)
-library(blockmodels)
 library(ggplot2)
 library(reshape2)
 library(dplyr)
 library(rgexf)
+library(sbm)
+library(gridExtra)
+library(patchwork)
+library(ggrepel)
 
 #movies_sample contains our specific sample of 20 movies
 
@@ -63,15 +68,16 @@ dcsbm_model_movie <- function(title) {
     movieA <- (movieA + t(movieA)) / 2
     diag(movieA) <- 0
 
-    # BM_bernoulli with degree_correction = TRUE  =>  DC-SBM
-    # blockmodels uses VEM internally
-    model <- BM_bernoulli(
-      membership_type = "SBM_sym",
-      adj             = (movieA > 0) * 1,
-      verbosity       = 0,
-      plotting        = ""
-    )
-    model$estimate()  # runs Variational EM for K=1..max_blocks
+    # Bernoulli SBM with degree_correction
+    model <- estimateSimpleSBM(
+    netMat       = (movieA > 0) * 1,
+    model        = "bernoulli",
+    directed     = FALSE,
+    estimOptions = list(
+    verbosity     = 0,
+    nbCores       = 1,
+    degreeCorrect = TRUE))
+    
     out <- list(movie_graph = movie_graph, model = model)
     return(out)
 }
@@ -92,10 +98,322 @@ for (i in seq_along(movies_sample$title)) {
 ```
 
 
-# Analysis using the Stochastic Block Model Fits of our movies
+## SBM Model Info Collection
 
 In case of a single network, Stochastic Block Models are powerful tools to analyze, model and further gain intuition and understanding about the community structure of the graph and analyzing interactions and gateways between communities. SBMs can also model the data for a Network and possess decent predictive power (even more by accounting for degree heterogeneity using DCSBM). 
 
-In our case we are fitting multiple SBM models, which let's us instead to a comparative analysis among different movies.
+In our case we are fitting multiple SBM models, which let's us instead to a comparative analysis among different movies using the `sbm` package. We will extract the metadata about each model fit using R:
+
+```{r}
+#Pass models to the function to get metadata
+dcsbm_metadata <- function(res) {
+  model <- res$model
+  g <- res$movie_graph
+  
+  list(
+    K         = model$nbBlocks, #Number of communities
+    labels    = model$memberships, #assignment vectors
+    block_mat = model$connectParam$mean,   #Block Probability matrix
+    ICL       = model$ICL,     #ICL value of each model
+    n_nodes   = vcount(g), #Num Nodes
+    n_edges   = ecount(g), #Num edges
+    graph     = g #graphs
+  )
+}
+
+best <- lapply(results, dcsbm_metadata)
+```
 
 
+## Summarizing SBM Model Information
+
+Summary of the DCSBM model information for all 20 movies:
+
+```{r}
+summary_df <- data.frame(
+  movie   = names(best), 
+  n_nodes= sapply(best, `[[`, "n_nodes"),
+  n_edges = sapply(best, `[[`, "n_edges"),
+  K_hat= sapply(best, `[[`, "K"),
+  ICL = round(sapply(best, `[[`, "ICL"),2),
+  modularity = round(mapply(function(b) {
+    modularity(b$graph, b$labels)
+  }, best),2)
+)
+```
+
+
+```{r}
+# --- Plot 1: Network Size - use pivot_longer but plot separately to avoid dodge issues
+p1 <- ggplot(summary_df, aes(x = reorder(movie, n_nodes + n_edges))) +
+  geom_col(aes(y = n_edges), fill = "coral", alpha = 0.8) +
+  geom_col(aes(y = n_nodes), fill = "steelblue", alpha = 0.8) +
+  coord_flip() +
+  labs(title = "Network Size by Movie", x = "", y = "Count") +
+  theme_minimal(base_size = 7)
+
+# --- Plot 2: Optimal K
+p2 <- ggplot(summary_df, aes(x = reorder(movie, K_hat),
+                               y = K_hat,
+                               fill = factor(K_hat))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  scale_y_continuous(breaks = 1:max(summary_df$K_hat)) +
+  labs(title = "Optimal K by Movie", x = "", y = "K", fill = "K") +
+  theme_minimal(base_size = 7)
+
+# --- Plot 3: ICL
+p3 <- ggplot(summary_df, aes(x = reorder(movie, ICL),
+                               y = ICL,
+                               fill = factor(K_hat))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "ICL by Movie", x = "", y = "ICL", fill = "K") +
+  theme_minimal(base_size = 7)
+
+# --- Plot 4: Modularity
+p4 <- ggplot(summary_df, aes(x = reorder(movie, modularity),
+                               y = modularity,
+                               fill = factor(K_hat))) +
+  geom_col() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Modularity by Movie", x = "", y = "Modularity", fill = "K") +
+  theme_minimal(base_size = 7)
+
+(p1 + p2) / (p3 + p4)
+```
+
+
+##Homophily within characters' communities in the movies
+
+```{r}
+assort_score <- function(nm) {
+  bmat         <- best[[nm]]$block_mat
+  within_mean  <- mean(diag(bmat))
+  between_mean <- mean(bmat[upper.tri(bmat)])
+  if (between_mean == 0) return(NA)
+  within_mean / between_mean
+}
+
+summary_df$assort_score <- sapply(names(best), assort_score)
+
+ggplot(summary_df, aes(x = reorder(movie, assort_score), 
+                        y = assort_score,
+                        fill = factor(K_hat))) +
+  geom_col() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "black") +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(
+    title    = "Homophily Score by Movie",
+    x        = "",
+    y        = "Homophily Score",
+    fill     = "Number of\nCommunities (K)"
+  ) +
+  theme_minimal()
+```
+
+
+
+
+
+
+
+## Organized v/s Core-Periphery Character World Building
+
+- **X-axis (Homophily):** Within-block connection preference. Line at 1 = theoretical null (no preference).
+- **Y-axis (Core-Periphery):** Variance in block connectivity. Line at sample median (var = 0 unrealistic for real networks).
+
+```{r}
+# ============================================================
+# ANALYSIS 4: Interaction Grammar Scatter Plot
+# ============================================================
+
+compute_grammar_measures <- function(nm) {
+  bmat <- best[[nm]]$block_mat
+  K    <- nrow(bmat)
+  
+  if (K == 1) return(data.frame(movie = nm, homophily = NA, core_periphery = NA))
+  
+  # Homophily: diagonal mean / overall mean
+  # Reference at 1 = theoretical null of no within-block preference
+  diag_mean    <- mean(diag(bmat))
+  overall_mean <- mean(bmat)
+  homophily    <- ifelse(overall_mean == 0, NA, diag_mean / overall_mean)
+  
+  # Core-Periphery: variance of row means
+  # Reference at sample median — variance = 0 is too idealistic
+  # for real networks so we compare relative to sample
+  row_means      <- rowMeans(bmat)
+  core_periphery <- var(row_means)
+  
+  data.frame(
+    movie          = nm,
+    homophily      = homophily,
+    core_periphery = core_periphery
+  )
+}
+
+grammar_df <- do.call(rbind, lapply(names(best), compute_grammar_measures))
+grammar_df <- merge(grammar_df, summary_df[, c("movie", "K_hat")], by = "movie")
+
+# Theoretically motivated x reference (homophily = 1)
+# Empirically motivated y reference (sample median)
+cp_median <- median(grammar_df$core_periphery, na.rm = TRUE)
+
+ggplot(grammar_df, aes(x = homophily,
+                        y = core_periphery,
+                        color = factor(K_hat),
+                        label = movie)) +
+  
+  # Quadrant shading
+  annotate("rect", xmin = -Inf, xmax = 1,
+           ymin = cp_median, ymax = Inf,
+           fill = "lightblue", alpha = 0.15) +
+  annotate("rect", xmin = 1, xmax = Inf,
+           ymin = cp_median, ymax = Inf,
+           fill = "lightgreen", alpha = 0.15) +
+  annotate("rect", xmin = -Inf, xmax = 1,
+           ymin = -Inf, ymax = cp_median,
+           fill = "lightyellow", alpha = 0.15) +
+  annotate("rect", xmin = 1, xmax = Inf,
+           ymin = -Inf, ymax = cp_median,
+           fill = "lightsalmon", alpha = 0.15) +
+  
+  # Quadrant labels
+  annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5, size = 2.8,
+           color = "gray40", label = "Disassortative\nCore-Periphery") +
+  annotate("text", x = Inf,  y = Inf, hjust = 1.1,  vjust = 1.5, size = 2.8,
+           color = "gray40", label = "Assortative\nCore-Periphery") +
+  annotate("text", x = -Inf, y = -Inf, hjust = -0.1, vjust = -0.5, size = 2.8,
+           color = "gray40", label = "Disassortative\nDiffuse") +
+  annotate("text", x = Inf,  y = -Inf, hjust = 1.1,  vjust = -0.5, size = 2.8,
+           color = "gray40", label = "Assortative\nDiffuse") +
+  
+  # Reference lines
+  geom_vline(xintercept = 1,
+             linetype = "dashed", color = "gray60", linewidth = 0.4) +
+  geom_hline(yintercept = cp_median,
+             linetype = "dashed", color = "gray60", linewidth = 0.4) +
+  
+  geom_point(size = 3, alpha = 0.85) +
+  ggrepel::geom_text_repel(size = 2.2, max.overlaps = 20) +
+  
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Movie Interaction Grammar: Homophily vs Core-Periphery",
+    x     = "Homophily  (within-block preference)",
+    y     = "Core-Periphery  (variance in block connectivity)",
+    color = "K"
+  ) +
+  theme_minimal(base_size = 10)
+```
+
+## Plots for Degree Heterogeneity
+
+```{r}
+# ============================================================
+# ANALYSIS 5: Degree Heterogeneity within Movie Networks
+#
+# CV of degree measures how unequal character connectivity is.
+# High CV => a few characters dominate most interactions
+#            (star-driven narrative, clear protagonist)
+# Low CV  => characters share interactions relatively equally
+#            (ensemble cast, distributed narrative)
+#
+# We also compute CV within each SBM block to ask:
+# does degree heterogeneity exist WITHIN communities or
+# only ACROSS them? This directly justifies the DC-SBM —
+# if CV within blocks is high, plain SBM would have split
+# blocks purely by degree rather than narrative role.
+# ============================================================
+
+compute_degree_het <- function(nm) {
+  g <- best[[nm]]$graph
+  labels <- best[[nm]]$labels
+  K <- best[[nm]]$K
+  
+  deg <- degree(g)
+  
+  # Global Normalized Deg Heterogenity across entire network
+  global_cv <- sd(deg) / mean(deg)
+  
+  # Deg Heterogeniety within each block
+  block_cvs <- sapply(1:K, function(k) {
+    block_deg <- deg[labels == k]
+    if (length(block_deg) < 2) return(NA)
+    sd(block_deg) / mean(block_deg)
+  })
+  
+  # Mean within-block CV (average heterogeneity inside communities)
+  mean_within_cv <- mean(block_cvs, na.rm = TRUE)
+  
+  data.frame(
+    movie          = nm,
+    global_cv      = global_cv,
+    mean_within_cv = mean_within_cv,
+    K              = K
+  )
+}
+
+het_df <- do.call(rbind, lapply(names(best), compute_degree_het))
+het_df <- merge(het_df, summary_df[, c("movie", "K_hat")], by = "movie")
+
+p_global <- ggplot(het_df, aes(x = reorder(movie, global_cv),
+                                y = global_cv,
+                                fill = factor(K_hat))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(
+    title = "Global Degree Heterogeneity by Movie",
+    x     = "",
+    y     = "CV of Degree",
+    fill  = "K"
+  ) +
+  theme_minimal(base_size = 8) +
+  theme(axis.text.y = element_text(size = 6))
+
+p_within <- ggplot(het_df, aes(x = reorder(movie, mean_within_cv),
+                                y = mean_within_cv,
+                                fill = factor(K_hat))) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  labs(
+    title = "Within-Block Degree Heterogeneity by Movie",
+    x     = "",
+    y     = "Mean Within-Block CV of Degree",
+    fill  = "K"
+  ) +
+  theme_minimal(base_size = 8) +
+  theme(axis.text.y = element_text(size = 6))
+
+# ── Plot 3: Global vs Within-block CV scatter ─────────────────────────────────
+# Movies above the diagonal have MORE within-block heterogeneity
+# relative to global — degree variation is not explained by
+# block membership alone, strongly justifying DC-SBM
+p_scatter <- ggplot(het_df, aes(x = global_cv,
+                                 y = mean_within_cv,
+                                 color = factor(K_hat),
+                                 label = movie)) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed", color = "gray60") +
+  geom_point(size = 3, alpha = 0.85) +
+  ggrepel::geom_text_repel(size = 2.2, max.overlaps = 20) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title    = "Global vs Within-Block Degree Heterogeneity",
+    x        = "Global Degree Heterogeneity",
+    y        = "Mean Within-Block Degree Heterogeneity",
+    color    = "K"
+  ) +
+  theme(axis.text.y = element_text(size = 4))
+
+# ── Print ─────────────────────────────────────────────────────────────────────
+(p_global + p_within) / p_scatter
+```
